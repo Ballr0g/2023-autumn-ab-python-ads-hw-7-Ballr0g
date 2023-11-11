@@ -1,0 +1,172 @@
+[tool.poetry]
+name = "Homewok #7 AntiFraud API with Docker"
+version = "1.0.0"
+description = "Anti-Fraud Web application based on FastAPI"
+authors = ["Daniil Sagalov"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.104.0"
+python-dotenv = "^1.0.0"
+uvicorn = "^0.23.2"
+sqlalchemy = "^2.0.22"
+httpx = "^0.25.0"
+
+[tool.poetry.dev-dependencies]
+flake8 = "*"
+flake8-pyproject = "*"
+flake8-builtins = "*"
+flake8-comprehensions = "*"
+flake8-eradicate = "*"
+flake8-isort = "*"
+flake8-logging-format = "*"
+flake8-print = "*"
+flake8-pytest = "*"
+flake8-pytest-style = "*"
+flake8-quotes = "*"
+flake8-return = "*"
+autoflake = "^2.2.1"
+bandit = "^1.7.5"
+mypy = "^1.6.1"
+pylint = "^3.0.2"
+pytest = "^7.4.3"
+pytest-deadfixtures = "^2.2.1"
+pytest-cov = "^4.1.0"
+black = "^23.10.1"
+safety = "^2.3.5"
+isort = "^5.12.0"
+make = "^0.1.6.post2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_format = "%(asctime)s %(levelname)s %(message)s"
+log_cli_level = "INFO"
+filterwarnings = "ignore::pytest.PytestWarning"
+testpaths = [
+    "tests",
+]
+addopts = "-o cache_dir=/dev/null"
+
+
+[tool.coverage.run]
+# Включить/выключить отслеживание частичных ветвей
+branch = true
+# Список паттернов для исключения файлов и директорий из измерения или отчета
+omit = [
+    "tests/*",
+    "**/__main__.py",
+    "**/.venv/*",
+]
+
+[tool.coverage.report]
+# Не включать в отчет файлы со 100% показателем coverage
+skip_covered = true
+# Включить/выключить отображение номеров невыполненных строк (колонка Missing) в отчете
+show_missing = true
+# Минимально допустимый общий(TOTAL) процент покрытия
+fail_under = 0
+sort = "Cover"
+
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.isort]
+py_version=311
+line_length = 100
+src_paths = [ "tests"]
+known_first_party = [ "tests"]
+multi_line_output = 3
+balanced_wrapping = true
+include_trailing_comma = true
+
+[tool.pylint.MAIN]
+py-version = "3.12"
+jobs = 4
+
+[tool.pylint.TYPECHECK]
+generated-members = [
+    "responses.*",
+    "petl.*", # E1101: Instance of '*' has no '*' member (no-member)
+    "pandas.*", # E1101: Instance of '*' has no '*' member (no-member)
+    "mg.constants.MGEntityTypes",  # E1101: Instance of '*' has no '*' member (no-member)
+    "mg.utilities.search_enums.*", # E1101: Instance of '*' has no '*' member (no-member) MG*ForSearch
+]
+ignored-classes = [
+    "contextlib.closing",
+    "sqlalchemy.orm.scoping.scoped_session",
+]
+
+[tool.pylint.BASIC]
+good-names=[
+    "i",
+    "j",
+    "k",
+    "e",
+    "x",
+    "_",
+    "pk",
+]
+
+[tool.pylint.CODE_STYLE]
+max-line-length=120
+max-module-lines=600
+
+[tool.pylint.FORMAT]
+output-format = "colorized"
+
+[tool.pylint."MESSAGES CONTROL"]
+disable= [
+    "E0611",  # No name 'UrlStr' in module 'pydantic' (no-name-in-module)
+    "C0411",  # flake8 isort checked it correct then pylint
+    "R0903",  # Too few public methods
+]
+
+[tool.pylint.REFACTORING]
+# Maximum number of nested code blocks for function / method (see R1702)
+max-nested-blocks=3
+
+[tool.pylint.DESIGN]
+# Maximum number of branch for function / method body (see R0912)
+max-branches=10
+# Maximum number of statements in function / method body (see R0915)
+max-statements=25
+# Maximum number of attributes for a class (see R0902).
+max-attributes=10
+# Maximum number of public methods for a class (see R0904).
+max-public-methods=10
+
+[tool.mypy]
+plugins=["sqlalchemy.ext.mypy.plugin"]
+python_version = "3.12"
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_untyped_decorators = false
+disallow_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.flake8]
+ignore = ['Q000', 'E241']
+per-file-ignores = [
+    '__init__.py:F401',
+]
+exclude = [".git", ".venv", "venv"]
+max-line-length = 100
+count = true
+
+[tool.bandit]
+skips = [
+    "B101",
+    "B311" # It does not feel like using cryptographic random is necessary for the project.
+]
