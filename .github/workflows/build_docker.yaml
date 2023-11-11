@@ -29,7 +29,7 @@ jobs:
       run: docker build -t $DOCKER_HUB_USER/anti-fraud .
 
     - name: Tag Docker image
-      run: docker tag $DOCKER_HUB_USER/anti-fraud:latest
+      run: docker tag $DOCKER_HUB_USER/anti-fraud $DOCKER_HUB_USER/anti-fraud:latest
 
     - name: Push image to Docker Hub
       run: docker push $DOCKER_HUB_USER/anti-fraud:latest
