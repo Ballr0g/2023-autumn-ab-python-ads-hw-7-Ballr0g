@@ -1,0 +1,35 @@
+name: Build Docker
+
+on:
+  workflow_run:
+    workflows: [Lint and test]
+    types:
+    - completed
+
+  push:
+    branches:
+    - '*'
+
+env:
+  DOCKER_HUB_USER: ${{ secrets.DOCKER_HUB_USER }}
+  DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+    - name: Checkout master
+      uses: actions/checkout@master
+
+    - name: Login to Docker Hub
+      run: echo $DOCKER_HUB_ACCESS_TOKEN | docker login --username $DOCKER_HUB_USER --password-stdin
+
+    - name: Build Docker image
+      run: docker build -t $DOCKER_HUB_USER/anti-fraud .
+
+    - name: Tag Docker image
+      run: docker tag $DOCKER_HUB_USER/anti-fraud:latest
+
+    - name: Push image to Docker Hub
+      run: docker push $DOCKER_HUB_USER/anti-fraud:latest
