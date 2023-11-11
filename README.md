@@ -17,7 +17,7 @@ https://hub.docker.com/r/ballr0g/anti-fraud
 ```
 
 ## Пример логов контейнера
-
+[Docker Hub + PyCharm с контейнером](assets/hw07_docker_container_running.png)
 
 ## Actions
 - ``Lint and test``: запуск линтеров и тестов, инициируется при push в репозиторий.
