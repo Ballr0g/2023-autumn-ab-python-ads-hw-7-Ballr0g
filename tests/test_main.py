@@ -206,8 +206,20 @@ def test_get_latest_entry_200(
 @pytest.mark.usefixtures("_setup_postgres_data")
 def test_get_latest_entry_404(client_for_tests: TestClient) -> None:
     run_base_response_checks(
-        "GET", f"/latest_entry/constant_fraud", 404, client_for_tests
+        "GET", "/latest_entry/constant_fraud", 404, client_for_tests
     )
+
+
+@pytest.mark.usefixtures("_setup_postgres_data")
+def test_get_number_of_entries(client_for_tests: TestClient) -> None:
+    response: Response = run_base_response_checks(
+        "GET", "/number_of_entries", 200, client_for_tests
+    )
+
+    assert response.json()["constant_clean"] == 1
+    assert response.json()["first_hypothesis"] == 2
+
+    assert "constant_fraud" not in response.json()
 
 
 def run_base_response_checks(
