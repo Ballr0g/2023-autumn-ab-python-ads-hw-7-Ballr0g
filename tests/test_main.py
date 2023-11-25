@@ -10,7 +10,7 @@ from app.schemas import BaseLine, ErrorType
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import Response
-from sqlalchemy import Engine, create_engine, Table, insert, Insert
+from sqlalchemy import Engine, Insert, Table, create_engine, insert
 from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.postgres import PostgresContainer
 
@@ -91,7 +91,7 @@ def _setup_postgres_data(postgres_test_engine: Engine) -> None:
             "result_prediction": "clean",
             "baseline_used": "constant_clean",
             "execution_date": datetime(year=2023, month=11, day=24, hour=8),
-        }
+        },
     ]
 
     with postgres_test_engine.connect() as connection:
@@ -166,32 +166,91 @@ def test_get_loss_by_baseline(
 
 @pytest.mark.usefixtures("_setup_postgres_data")
 @pytest.mark.parametrize(
+    ("input_baseline", "request_body", "expected_prediction"),
+    [
+        (
+            "constant_clean",
+            {
+                "text": "победа",
+            },
+            "clean",
+        ),
+        (
+            "constant_clean",
+            {
+                "text": "телеграм",
+            },
+            "clean",
+        ),
+        (
+            "constant_fraud",
+            {
+                "text": "победа",
+            },
+            "fraud",
+        ),
+        (
+            "constant_fraud",
+            {
+                "text": "телеграм",
+            },
+            "fraud",
+        ),
+        (
+            "first_hypothesis",
+            {
+                "text": "победа",
+            },
+            "clean",
+        ),
+        (
+            "first_hypothesis",
+            {
+                "text": "телеграм",
+            },
+            "fraud",
+        ),
+    ],
+)
+def test_post_predict_by_baseline(
+    input_baseline: BaseLine,
+    request_body: dict[str, str],
+    expected_prediction: str,
+    client_for_tests: TestClient,
+) -> None:
+    response: Response = run_base_response_checks(
+        "POST", f"/predict/{input_baseline}", 200, client_for_tests, request_body
+    )
+
+    assert response.json()["result"] == expected_prediction
+
+
+@pytest.mark.usefixtures("_setup_postgres_data")
+@pytest.mark.parametrize(
     ("input_baseline", "expected_message"),
     [
         (
-                "first_hypothesis",
-                {
-                    "input_text": "телеграм",
-                    "prediction_result": "fraud",
-                    "baseline_used": "first_hypothesis",
-                    "execution_date": "2023-11-25T10:00:00",
-                },
+            "first_hypothesis",
+            {
+                "input_text": "телеграм",
+                "prediction_result": "fraud",
+                "baseline_used": "first_hypothesis",
+                "execution_date": "2023-11-25T10:00:00",
+            },
         ),
         (
-                "constant_clean",
-                {
-                    "input_text": "Мороз и солнце",
-                    "prediction_result": "clean",
-                    "baseline_used": "constant_clean",
-                    "execution_date": "2023-11-24T08:00:00",
-                },
+            "constant_clean",
+            {
+                "input_text": "Мороз и солнце",
+                "prediction_result": "clean",
+                "baseline_used": "constant_clean",
+                "execution_date": "2023-11-24T08:00:00",
+            },
         ),
     ],
 )
 def test_get_latest_entry_200(
-        input_baseline: BaseLine,
-        expected_message: dict[str, str],
-        client_for_tests: TestClient
+    input_baseline: BaseLine, expected_message: dict[str, str], client_for_tests: TestClient
 ) -> None:
     response: Response = run_base_response_checks(
         "GET", f"/latest_entry/{input_baseline}", 200, client_for_tests
@@ -205,9 +264,7 @@ def test_get_latest_entry_200(
 
 @pytest.mark.usefixtures("_setup_postgres_data")
 def test_get_latest_entry_404(client_for_tests: TestClient) -> None:
-    run_base_response_checks(
-        "GET", "/latest_entry/constant_fraud", 404, client_for_tests
-    )
+    run_base_response_checks("GET", "/latest_entry/constant_fraud", 404, client_for_tests)
 
 
 @pytest.mark.usefixtures("_setup_postgres_data")
@@ -223,9 +280,13 @@ def test_get_number_of_entries(client_for_tests: TestClient) -> None:
 
 
 def run_base_response_checks(
-    http_method: HttpMethod, method_url: str, expected_status: int, client: TestClient
+    http_method: HttpMethod,
+    method_url: str,
+    expected_status: int,
+    client: TestClient,
+    body: Any = None,
 ) -> Response:
-    response: Response = client.request(method=http_method, url=method_url)
+    response: Response = client.request(method=http_method, url=method_url, json=body)
     assert response.status_code == expected_status
     assert "application/json" in response.headers["content-type"]
 
