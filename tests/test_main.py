@@ -5,6 +5,7 @@ import pytest
 from app import models
 from app.main import app as test_app
 from app.main import get_db
+from app.schemas import BaseLine, ErrorType
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import Response
@@ -103,17 +104,36 @@ def test_simple_api_structure(
 
 
 @pytest.mark.parametrize(
-    ("input_param", "expected_value"),
+    ("input_error_type", "expected_error_cost"),
     [
         ("false-positive", 10_000),
         ("false-negative", 75_000),
     ],
 )
-def test_get_cost_by_error_type(input_param: str, expected_value: int, client_for_tests: TestClient):
+def test_get_cost_by_error_type(
+    input_error_type: ErrorType, expected_error_cost: int, client_for_tests: TestClient
+) -> None:
     response: Response = run_base_response_checks(
-        "GET", f"/cost/{input_param}", 200, client_for_tests
+        "GET", f"/cost/{input_error_type}", 200, client_for_tests
     )
-    assert response.json()["errorCost"] == expected_value
+    assert response.json()["errorCost"] == expected_error_cost
+
+
+@pytest.mark.parametrize(
+    ("input_baseline", "expected_baseline_loss"),
+    [
+        ("constant_fraud", 1_900_000_000.0),
+        ("constant_clean", 750_000_000.0),
+        ("first_hypothesis", 644_850_000.0),
+    ],
+)
+def test_get_loss_by_baseline(
+    input_baseline: BaseLine, expected_baseline_loss: int, client_for_tests: TestClient
+) -> None:
+    response: Response = run_base_response_checks(
+        "GET", f"/loss/{input_baseline}", 200, client_for_tests
+    )
+    assert response.json()["baseDailyLineLoss"] == expected_baseline_loss
 
 
 def run_base_response_checks(
