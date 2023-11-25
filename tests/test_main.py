@@ -1,5 +1,5 @@
 import os
-from typing import Literal, Any, Generator
+from typing import Any, Generator, Literal
 
 import pytest
 from app import models
@@ -8,7 +8,7 @@ from app.main import get_db
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import Response
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.postgres import PostgresContainer
 
@@ -17,6 +17,7 @@ class FixedPostgresContainer(PostgresContainer):
     """
     This wrapper type was the only way to fix testcontainers indefinitely loading on Windows...
     """
+
     def get_connection_url(self, host: Any = None) -> str:
         if os.name == "nt":
             return super().get_connection_url().replace("localnpipe", "localhost")
@@ -39,12 +40,14 @@ def postgres_test_container(postgres_version: str) -> PostgresContainer:
 
 
 @pytest.fixture(scope="module")
-def postgres_test_session(postgres_test_container: PostgresContainer) -> sessionmaker[Session]:
-    pg_engine = create_engine(postgres_test_container.get_connection_url())
-    models.Base.metadata.create_all(bind=pg_engine)
+def postgres_test_engine(postgres_test_container: PostgresContainer) -> Engine:
+    return create_engine(postgres_test_container.get_connection_url())
 
+
+@pytest.fixture(scope="module")
+def postgres_test_session(postgres_test_engine: Engine) -> sessionmaker[Session]:
     pg_session_local: sessionmaker[Session] = sessionmaker(
-        autocommit=False, autoflush=False, bind=pg_engine
+        autocommit=False, autoflush=False, bind=postgres_test_engine
     )
     return pg_session_local
 
@@ -62,6 +65,12 @@ def postgres_test_app(postgres_test_session: sessionmaker[Session]) -> FastAPI:
     return test_app
 
 
+@pytest.fixture()
+def _setup_postgres_data(postgres_test_engine: Engine) -> None:
+    models.Base.metadata.drop_all(bind=postgres_test_engine)
+    models.Base.metadata.create_all(bind=postgres_test_engine)
+
+
 @pytest.fixture(scope="module")
 def client_for_tests(postgres_test_app: FastAPI) -> TestClient:
     with TestClient(postgres_test_app) as test_client:
@@ -76,6 +85,7 @@ def test_root_message_ok(client_for_tests: TestClient) -> None:
     assert response.json()["message"] == "Hello! This is the fraud detector."
 
 
+@pytest.mark.usefixtures("_setup_postgres_data")
 @pytest.mark.parametrize(
     ("http_method", "method_url", "expected_status"),
     [
@@ -84,9 +94,26 @@ def test_root_message_ok(client_for_tests: TestClient) -> None:
     ],
 )
 def test_simple_api_structure(
-    http_method: HttpMethod, method_url: str, expected_status: int, client_for_tests: TestClient
+    http_method: HttpMethod,
+    method_url: str,
+    expected_status: int,
+    client_for_tests: TestClient,
 ) -> None:
     run_base_response_checks(http_method, method_url, expected_status, client_for_tests)
+
+
+@pytest.mark.parametrize(
+    ("input_param", "expected_value"),
+    [
+        ("false-positive", 10_000),
+        ("false-negative", 75_000),
+    ],
+)
+def test_get_cost_by_error_type(input_param: str, expected_value: int, client_for_tests: TestClient):
+    response: Response = run_base_response_checks(
+        "GET", f"/cost/{input_param}", 200, client_for_tests
+    )
+    assert response.json()["errorCost"] == expected_value
 
 
 def run_base_response_checks(
