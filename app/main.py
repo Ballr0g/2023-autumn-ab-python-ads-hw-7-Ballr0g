@@ -27,7 +27,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 app: FastAPI = FastAPI()
-models.Base.metadata.create_all(bind=engine)
+
+
+if __name__ == "__main__":
+    models.Base.metadata.create_all(bind=engine)
 
 
 def get_db() -> Generator[Session, Any, None]:
