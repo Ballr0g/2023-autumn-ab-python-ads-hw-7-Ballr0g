@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Any, Generator, Literal
 
 import pytest
@@ -9,7 +10,7 @@ from app.schemas import BaseLine, ErrorType
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import Response
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, Table, insert, Insert
 from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.postgres import PostgresContainer
 
@@ -70,6 +71,33 @@ def postgres_test_app(postgres_test_session: sessionmaker[Session]) -> FastAPI:
 def _setup_postgres_data(postgres_test_engine: Engine) -> None:
     models.Base.metadata.drop_all(bind=postgres_test_engine)
     models.Base.metadata.create_all(bind=postgres_test_engine)
+
+    table: Table = Table("messages", models.Base.metadata)
+    messages: list[dict[str, str | datetime]] = [
+        {
+            "input_text": "ДЗ не стоит сдавать в последний день",
+            "result_prediction": "clean",
+            "baseline_used": "first_hypothesis",
+            "execution_date": datetime(year=2023, month=11, day=25, hour=8),
+        },
+        {
+            "input_text": "телеграм",
+            "result_prediction": "fraud",
+            "baseline_used": "first_hypothesis",
+            "execution_date": datetime(year=2023, month=11, day=25, hour=10),
+        },
+        {
+            "input_text": "Мороз и солнце",
+            "result_prediction": "clean",
+            "baseline_used": "constant_clean",
+            "execution_date": datetime(year=2023, month=11, day=24, hour=8),
+        }
+    ]
+
+    with postgres_test_engine.connect() as connection:
+        insertion: Insert = insert(table).values(messages)
+        connection.execute(insertion)
+        connection.commit()
 
 
 @pytest.fixture(scope="module")
@@ -134,6 +162,52 @@ def test_get_loss_by_baseline(
         "GET", f"/loss/{input_baseline}", 200, client_for_tests
     )
     assert response.json()["baseDailyLineLoss"] == expected_baseline_loss
+
+
+@pytest.mark.usefixtures("_setup_postgres_data")
+@pytest.mark.parametrize(
+    ("input_baseline", "expected_message"),
+    [
+        (
+                "first_hypothesis",
+                {
+                    "input_text": "телеграм",
+                    "prediction_result": "fraud",
+                    "baseline_used": "first_hypothesis",
+                    "execution_date": "2023-11-25T10:00:00",
+                },
+        ),
+        (
+                "constant_clean",
+                {
+                    "input_text": "Мороз и солнце",
+                    "prediction_result": "clean",
+                    "baseline_used": "constant_clean",
+                    "execution_date": "2023-11-24T08:00:00",
+                },
+        ),
+    ],
+)
+def test_get_latest_entry_200(
+        input_baseline: BaseLine,
+        expected_message: dict[str, str],
+        client_for_tests: TestClient
+) -> None:
+    response: Response = run_base_response_checks(
+        "GET", f"/latest_entry/{input_baseline}", 200, client_for_tests
+    )
+
+    assert response.json()["baseline_used"] == expected_message["baseline_used"]
+    assert response.json()["prediction_result"] == expected_message["prediction_result"]
+    assert response.json()["baseline_used"] == expected_message["baseline_used"]
+    assert response.json()["execution_date"] == expected_message["execution_date"]
+
+
+@pytest.mark.usefixtures("_setup_postgres_data")
+def test_get_latest_entry_404(client_for_tests: TestClient) -> None:
+    run_base_response_checks(
+        "GET", f"/latest_entry/constant_fraud", 404, client_for_tests
+    )
 
 
 def run_base_response_checks(
